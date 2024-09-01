@@ -1,41 +1,36 @@
-name: MSBuild
+name: Build SharpDecryptPwd
 
 on:
   push:
-    branches: ["main"]
+    branches:
+      - main
   pull_request:
-    branches: ["main"]
-
-env:
-  SOLUTION_FILE_PATH: ./SharpDecryptPwd.sln
-  BUILD_CONFIGURATION: Release
+    branches:
+      - main
 
 jobs:
   build:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - name: Add MSBuild to PATH
-        uses: microsoft/setup-msbuild@v1
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '7.x'
+
+      - name: Install .NET Framework 4.0 Developer Pack
+        run: |
+          Invoke-WebRequest -Uri https://download.visualstudio.microsoft.com/download/pr/3e5c68e7-cd6d-4eeb-b4e8-4b1b9d8b5ad1/4b1e9c3b1818cc8c0df2d9cf53597d18/NetFx4.8.1_DeveloperPack.exe -OutFile NetFx4.8.1_DeveloperPack.exe
+          Start-Process -FilePath .\NetFx4.8.1_DeveloperPack.exe -ArgumentList "/quiet", "/norestart" -NoNewWindow -Wait
+
+      - name: Restore dependencies
+        run: dotnet restore SharpDecryptPwd.sln
 
       - name: Build
-        working-directory: ${{env.GITHUB_WORKSPACE}}
-        run: msbuild ${{env.SOLUTION_FILE_PATH}} -t:rebuild -property:Configuration=${{env.BUILD_CONFIGURATION}}
+        run: dotnet build SharpDecryptPwd.sln -c Release
 
-      - name: Package
-        working-directory: ${{env.GITHUB_WORKSPACE}}
-        run: Compress-Archive -Path .\revive_hypereal -Destination prebuild_driver.zip
-
-      - name: Release
-        uses: softprops/action-gh-release@v1
-        with:
-          token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
-          tag_name: prebuild_driver
-          name: Release ${{ github.sha }}
-          body: 由提交${{ github.sha }}自动触发编译生成的Release。
-          draft: false
-          prerelease: false
-          files: |
-            prebuild_driver.zip
+      - name: Run tests (optional)
+        run: dotnet test SharpDecryptPwd.sln --logger trx
